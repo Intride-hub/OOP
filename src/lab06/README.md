@@ -5,60 +5,80 @@
 типизацию через `typing.Protocol`.
 
 ## 2. Описание реализованных типов и контейнеров
-**Аннотации** добавлены ко всем классам из ЛР-1/ЛР-3 (`models.py`, `validate.py`,
-`interfaces.py`): параметры конструкторов, атрибуты в `__init__`, возвращаемые значения.
+**Аннотации.** Классы из ЛР-1 и ЛР-3 (`models.py`: `Car`, `Taxi`, `Truck`) и проверки
+(`validate.py`) аннотированы полностью: параметры конструкторов, атрибуты в `__init__`,
+возвращаемые значения методов. Логика не менялась.
 
-**`TypedCollection[T]`** (`container.py`) — Generic-версия `Fleet`. Тип элементов
-задаётся при создании (`TypedCollection(Car)`) и проверяется в `add()` через `isinstance`.
-Перенесены все методы `Fleet`: `add/remove/get_all`, `__len__/__iter__/__contains__/__getitem__`,
-`remove_at`, `sort`, `sort_by`, `filter_by`, `apply`; добавлены `find`, `filter`, `map`.
+**`TypedCollection[T]`** (`container.py`) — Generic-версия коллекции из ЛР-2; сам `Fleet`
+из ЛР-2 не тронут. Перенесены методы `add`, `remove`, `get_all`, `__len__`, `__iter__`,
+`__getitem__`, `remove_at`, `sort`. Методы, которые зависели от машин (`find_by_plate`,
+`get_available`), заменены общими `find()` и `filter()` с функцией-условием: в обобщённой
+коллекции про номер или статус элементов ничего не известно.
 
-**TypeVar**:
-- `T` — любой тип элемента;
-- `R` — тип результата `map()` (может отличаться от `T`);
-- `S = TypeVar("S", bound=Scorable)` — только объекты с `score()`;
-- `Z = TypeVar("Z", bound=Serializable)` — только объекты с `to_dict()`.
+Аннотации проверяет mypy до запуска, а во время работы программы они ничего не запрещают.
+Поэтому `TypedCollection` получает тип элементов в конструкторе и проверяет его в `add()`
+через `isinstance`.
 
-**Протоколы** (`@runtime_checkable`): `Scorable` (`score() -> float`), `Serializable`
-(`to_dict() -> dict`). Классы `Car`, `Taxi`, `Truck` **не наследуются** от них — у них просто
-есть эти методы (добавлены `score()` и `to_dict()`). Класс `Driver` из демо тоже подходит
-под `Scorable`, хотя к машинам отношения не имеет.
+**TypeVar**
+| Имя | Ограничение | Зачем |
+|---|---|---|
+| `T` | нет | тип элементов коллекции |
+| `R` | нет | тип результата `map()`: из коллекции `Car` получается `list[str]` или `list[float]` |
+| `D` | `bound=Displayable` | только объекты с `display()` |
+| `P` | `bound=Priced` | только объекты с `trip_cost()` |
 
-Функции с ограниченными TypeVar: `best_by_score(TypedCollection[S])`, `average_score`,
-`serialize_all(TypedCollection[Z])`.
+**Протоколы** (`@runtime_checkable`, в `container.py`):
+- `Displayable` — метод `display() -> str`;
+- `Priced` — метод `trip_cost(distance: int) -> float`.
 
-## 3. Демонстрация работы (`python demo.py`)
-1. Типизированные коллекции `Car` и `str`, валидация типа при добавлении, дубликаты.
-2. `find()` (найден / `None`), `filter()`, `map()` с четырьмя разными типами результата.
-3. `TypedCollection[Scorable]` с `Car`, `Taxi`, `Truck`, `Driver` без наследования от протокола.
-4. `TypedCollection[Serializable]` — тот же класс, другое ограничение; `json.dumps`.
+`Car`, `Taxi` и `Truck` **не наследуются** от протоколов: оба метода у них уже были
+с ЛР-3, этого достаточно. Класс `Driver` из демо к машинам отношения не имеет, но у него
+есть `display()`, значит он тоже `Displayable`.
 
-**Сценарий 1.** Типизированная коллекция и проверка типов (задание на 3)
+Функции с ограниченными TypeVar:
+- `show_all(items: TypedCollection[D])` — выводит каждый элемент через `display()`;
+- `cheapest(items: TypedCollection[P], distance) -> P | None` — возвращает **тот же тип**,
+  что лежит в коллекции: для `TypedCollection[Taxi]` mypy знает, что результат — `Taxi`,
+  и разрешает обратиться к `.tariff`.
 
-![Сценарий 1](../../image/lab06/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-10-04%20133702.png)
+## 3. Демонстрация работы
+Запуск из папки `src/lab06`: `python demo.py`.
 
-**Сценарий 2.** `find()`, `filter()`, `map()` (задание на 4)
+**Сценарий 1.** `TypedCollection[Car]`: добавление машин всех трёх типов, проверка типа
+и дубликатов при добавлении, сортировка, вывод всех элементов (задание на 3).
 
-![Сценарий 2](../../image/lab06/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-10-04%20133706.png)
+![Сценарий 1](../../image/lab06/scenario1.png)
 
-**Сценарий 3.** `Protocol Scorable`: `TypedCollection[S]` без наследования (задание на 5)
+**Сценарий 2.** `find()` (найден и `None`), `filter()`, два `map()` с разными типами
+результата (задание на 4).
 
-![Сценарий 3](../../image/lab06/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-10-04%20133710.png)
+![Сценарий 2](../../image/lab06/scenario2.png)
 
-**Сценарий 4.** `Protocol Serializable`: тот же `TypedCollection`, другое ограничение
+**Сценарий 3.** `TypedCollection[Displayable]` с машинами разных типов и водителем:
+подходят без наследования от протокола, `Rock` без `display()` не проходит (задание на 5).
 
-![Сценарий 4](../../image/lab06/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-10-04%20133717.png)
+![Сценарий 3](../../image/lab06/scenario3.png)
 
-Статическая проверка (`python -m mypy typecheck_demo.py`) находит ошибки до запуска:
+**Сценарий 4.** `TypedCollection[Priced]` — тот же класс с другим ограничением;
+`cheapest()` для `Priced`, для `Taxi` и для пустой коллекции.
+
+![Сценарий 4](../../image/lab06/scenario4.png)
+
+**Сверх задания: проверка до запуска.** В `typecheck_demo.py` нарочно сделано пять ошибок
+типов. Команда `python -m mypy typecheck_demo.py` находит их все, не запуская программу:
 ```text
-typecheck_demo.py:5: error: Argument 1 to "add" of "TypedCollection" has incompatible type "str"; expected "Car"  [arg-type]
-typecheck_demo.py:6: error: Argument 1 to "map" of "TypedCollection" has incompatible type "Callable[[Car], int]"; expected "Callable[[Car], str]"  [arg-type]
-typecheck_demo.py:6: error: Incompatible return value type (got "int", expected "str")  [return-value]
-typecheck_demo.py:8: error: Item "None" of "Car | None" has no attribute "plate"  [union-attr]
-typecheck_demo.py:14: error: Argument 1 to "add" of "TypedCollection" has incompatible type "Rock"; expected "Scorable"  [arg-type]
-Found 5 errors in 1 file (checked 1 source file)
+typecheck_demo.py:11: error: Argument 1 to "add" of "TypedCollection" has incompatible type "str"; expected "Car"  [arg-type]
+typecheck_demo.py:12: error: Argument 1 to "map" of "TypedCollection" has incompatible type "Callable[[Car], int]"; expected "Callable[[Car], str]"  [arg-type]
+typecheck_demo.py:12: error: Incompatible return value type (got "int", expected "str")  [return-value]
+typecheck_demo.py:14: error: Item "None" of "Car | None" has no attribute "plate"  [union-attr]
+typecheck_demo.py:22: error: Argument 1 to "add" of "TypedCollection" has incompatible type "Rock"; expected "Displayable"  [arg-type]
+typecheck_demo.py:26: error: Item "Taxi" of "Taxi | None" has no attribute "max_load"  [union-attr]
+typecheck_demo.py:26: error: Item "None" of "Taxi | None" has no attribute "max_load"  [union-attr]
+Found 7 errors in 1 file (checked 1 source file)
 ```
+Остальные файлы ЛР-6 mypy проходят без ошибок: `python -m mypy models.py validate.py container.py demo.py`.
 
 ## 4. Вывод
-Изучены аннотации типов, `Generic`/`TypeVar` (в т.ч. с `bound=`), `Protocol` как
-структурный интерфейс и то, как типизация помогает читать и проверять код.
+Изучены аннотации типов, `Generic` и `TypeVar` (в том числе с `bound=`), `Protocol` как
+структурный интерфейс без наследования и то, как типизация помогает читать код и находить
+ошибки до запуска.

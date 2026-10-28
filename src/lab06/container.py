@@ -1,199 +1,114 @@
-"""ЛР-6. Обобщённая (generic) коллекция TypedCollection[T] и протоколы.
+"""ЛР-6. TypedCollection — Generic-версия коллекции из ЛР-2, и два Protocol.
 
-Коллекция Fleet из ЛР-2 умела хранить только Car. TypedCollection умеет
-хранить «что угодно, но одного типа T», причём этот T указывается при
-создании — и проверяется дважды:
-
-  * статически  — IDE/mypy видят TypedCollection[Car] и ругаются на add("строка")
-                  ещё до запуска;
-  * динамически — в конструктор передаётся класс (TypedCollection(Car)),
-                  и add() проверяет isinstance во время выполнения.
-
-Протоколы Scorable и Serializable — это «интерфейсы без наследования»:
-объект подходит, если у него ЕСТЬ нужный метод. Наследоваться не нужно.
+Fleet из ЛР-2 не тронут. TypedCollection повторяет его методы, но знает тип
+своих элементов. Методы, которые зависели от машин (find_by_plate,
+get_available), заменены общими find() и filter() с функцией-условием.
 """
 
-from __future__ import annotations
+from collections.abc import Callable, Iterator
+from typing import Any, Generic, Protocol, TypeVar, runtime_checkable
 
-from typing import Any, Callable, Generic, Iterator, Optional, Protocol, TypeVar, runtime_checkable
+T = TypeVar("T")      # тип элементов коллекции
+R = TypeVar("R")      # тип результата map(): может отличаться от T
 
-# ===========================================================================
-# Протоколы: структурная типизация («утиная типизация» с проверкой)
-# ===========================================================================
-
-
-@runtime_checkable
-class Scorable(Protocol):
-    """Всё, у чего есть score() -> float. Наследоваться от Scorable не нужно."""
-
-    def score(self) -> float:
-        ...
-
-
-@runtime_checkable
-class Serializable(Protocol):
-    """Всё, что умеет превращаться в словарь: to_dict() -> dict."""
-
-    def to_dict(self) -> dict[str, Any]:
-        ...
-
-
-# ===========================================================================
-# Переменные типа
-# ===========================================================================
-
-T = TypeVar("T")                            # любой тип
-R = TypeVar("R")                            # тип результата map()
-S = TypeVar("S", bound=Scorable)            # только то, у чего есть score()
-Z = TypeVar("Z", bound=Serializable)        # только то, у чего есть to_dict()
-
-
-# ===========================================================================
-# Обобщённая коллекция
-# ===========================================================================
 
 class TypedCollection(Generic[T]):
-    """Коллекция объектов одного типа T. Повторяет интерфейс Fleet из ЛР-2/5."""
+    """Коллекция элементов одного типа T.
 
-    def __init__(self, item_type: type, name: str = "Коллекция") -> None:
-        # item_type — класс (или протокол с @runtime_checkable) для проверки в add().
-        if not isinstance(item_type, type):
-            raise TypeError("item_type должен быть классом")
+    Аннотации проверяет mypy до запуска. Во время работы программы они ничего
+    не запрещают, поэтому тип элемента ещё и проверяется в add() через isinstance.
+    """
+
+    def __init__(self, item_type: type) -> None:
         self._item_type: type = item_type
-        self._name: str = name
         self._items: list[T] = []
 
-    # ---------- ЛР-2 (задание на 3): базовое управление ----------
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def item_type(self) -> type:
-        return self._item_type
+    # --- методы коллекции из ЛР-2 ---
 
     def add(self, item: T) -> None:
-        """Добавить объект. Проверка типа — во время выполнения, дубликатов — по ==."""
+        """Добавить элемент: только нужного типа и без дубликатов."""
         if not isinstance(item, self._item_type):
-            raise TypeError(
-                f"В {self._name} можно добавить только {self._item_type.__name__}, "
-                f"получено {type(item).__name__}"
-            )
+            raise TypeError(f"Ожидался {self._item_type.__name__}, получено {type(item).__name__}")
         if item in self._items:
-            raise ValueError(f"Объект {item!r} уже есть в коллекции")
+            raise ValueError(f"Такой элемент уже есть: {item!r}")
         self._items.append(item)
 
     def remove(self, item: T) -> None:
+        """Удалить элемент. Если его нет — ValueError."""
         if item not in self._items:
-            raise ValueError(f"Объекта {item!r} нет в коллекции")
+            raise ValueError("Такого элемента нет в коллекции")
         self._items.remove(item)
 
     def get_all(self) -> list[T]:
-        """Копия списка — как и в Fleet."""
+        """Копия списка элементов."""
         return list(self._items)
-
-    # ---------- ЛР-2 (задание на 4): len, for, in ----------
 
     def __len__(self) -> int:
         return len(self._items)
 
     def __iter__(self) -> Iterator[T]:
-        return iter(list(self._items))
-
-    def __contains__(self, item: object) -> bool:
-        return item in self._items
-
-    # ---------- ЛР-2 (задание на 5): индексация, удаление, сортировка ----------
+        return iter(self._items)
 
     def __getitem__(self, index: int) -> T:
         return self._items[index]
 
     def remove_at(self, index: int) -> T:
-        if not isinstance(index, int) or isinstance(index, bool):
-            raise TypeError("Индекс должен быть целым числом")
-        if not (-len(self._items) <= index < len(self._items)):
-            raise IndexError(f"Индекс {index} вне диапазона")
+        """Удалить элемент по индексу и вернуть его."""
+        if not -len(self._items) <= index < len(self._items):
+            raise IndexError(f"Нет элемента с индексом {index}")
         return self._items.pop(index)
 
     def sort(self, key: Callable[[T], Any], reverse: bool = False) -> None:
-        """Сортировка на месте по ключу key."""
+        """Отсортировать на месте по функции-ключу."""
         self._items.sort(key=key, reverse=reverse)
 
-    # ---------- ЛР-5: стратегии как аргументы ----------
+    # --- задание на 4: find, filter, map ---
 
-    def sort_by(self, key: Callable[[T], Any], reverse: bool = False) -> TypedCollection[T]:
-        """Новая коллекция того же типа, отсортированная по key."""
-        result: TypedCollection[T] = TypedCollection(self._item_type, self._name)
-        for item in sorted(self._items, key=key, reverse=reverse):
-            result.add(item)
-        return result
-
-    def filter_by(self, predicate: Callable[[T], bool]) -> TypedCollection[T]:
-        """Новая коллекция из элементов, прошедших predicate."""
-        result: TypedCollection[T] = TypedCollection(self._item_type, self._name)
-        for item in self._items:
-            if predicate(item):
-                result.add(item)
-        return result
-
-    def apply(self, func: Callable[[T], Any]) -> TypedCollection[T]:
-        """Применить func к каждому элементу; вернуть self для цепочки."""
-        for item in self._items:
-            func(item)
-        return self
-
-    # ---------- ЛР-6 (задание на 4): find / filter / map ----------
-
-    def find(self, predicate: Callable[[T], bool]) -> Optional[T]:
-        """Первый элемент, для которого predicate вернул True, иначе None."""
+    def find(self, predicate: Callable[[T], bool]) -> T | None:
+        """Первый элемент, для которого predicate истинно, или None."""
         for item in self._items:
             if predicate(item):
                 return item
         return None
 
     def filter(self, predicate: Callable[[T], bool]) -> list[T]:
-        """Список всех подходящих элементов (именно list, как просит ТЗ)."""
+        """Все элементы, для которых predicate истинно."""
         return [item for item in self._items if predicate(item)]
 
     def map(self, transform: Callable[[T], R]) -> list[R]:
-        """Список результатов transform(item). Тип результата R может отличаться от T."""
+        """Применить transform к каждому элементу. Тип результата R может отличаться от T."""
         return [transform(item) for item in self._items]
 
-    # ---------- представление ----------
 
-    def __str__(self) -> str:
-        if not self._items:
-            return f"{self._name}[{self._item_type.__name__}]: пусто"
-        lines = [f"{self._name}[{self._item_type.__name__}] ({len(self._items)} шт.):"]
-        for number, item in enumerate(self._items, start=1):
-            lines.append(f"  {number}. {item}")
-        return "\n".join(lines)
+# --- задание на 5: протоколы и TypeVar с ограничением ---
 
-    def __repr__(self) -> str:
-        return f"TypedCollection({self._item_type.__name__}, name={self._name!r}, items={len(self._items)})"
+@runtime_checkable
+class Displayable(Protocol):
+    """Всё, что умеет описать себя: есть метод display() -> str."""
+
+    def display(self) -> str: ...
 
 
-# ===========================================================================
-# Функции, использующие ограниченные TypeVar
-# ===========================================================================
+@runtime_checkable
+class Priced(Protocol):
+    """Всё, у чего есть стоимость поездки: метод trip_cost(distance) -> float."""
 
-def best_by_score(items: TypedCollection[S]) -> Optional[S]:
-    """Элемент с максимальным score(). Работает с любым S, у которого есть score()."""
-    best: Optional[S] = None
+    def trip_cost(self, distance: int) -> float: ...
+
+
+D = TypeVar("D", bound=Displayable)   # только объекты с display()
+P = TypeVar("P", bound=Priced)        # только объекты с trip_cost()
+
+
+def show_all(items: TypedCollection[D]) -> None:
+    """Вывести каждый элемент через display(). mypy знает, что display() есть у всех."""
     for item in items:
-        if best is None or item.score() > best.score():
-            best = item
-    return best
+        print("  " + item.display())
 
 
-def average_score(items: TypedCollection[S]) -> float:
-    """Средний score() по коллекции (0.0 для пустой)."""
-    if len(items) == 0:
-        return 0.0
-    return sum(item.score() for item in items) / len(items)
+def cheapest(items: TypedCollection[P], distance: int) -> P | None:
+    """Элемент с самой дешёвой поездкой на distance км или None, если коллекция пуста.
 
-
-def serialize_all(items: TypedCollection[Z]) -> list[dict[str, Any]]:
-    """Список словарей — то, что можно отдать json.dump()."""
-    return [item.to_dict() for item in items]
+    Возвращает тот же тип, что лежит в коллекции: для TypedCollection[Taxi] — Taxi.
+    """
+    return min(items, key=lambda item: item.trip_cost(distance), default=None)
