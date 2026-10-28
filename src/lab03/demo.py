@@ -1,4 +1,4 @@
-"""ЛР-3. Сценарии: наследование, переопределение, полиморфизм, коллекция разных типов."""
+"""ЛР-3. Сценарии работы с иерархией Car -> Taxi, Truck."""
 
 from base import Car
 from collection import Fleet
@@ -9,117 +9,74 @@ def header(title):
     print(f"\n{'=' * 60}\n{title}\n{'=' * 60}")
 
 
-def expect_error(action, *args, **kwargs):
+def try_it(description, action):
+    """Выполнить действие, которое должно упасть, и показать текст ошибки."""
     try:
-        action(*args, **kwargs)
-        print("  !!! ошибки не было, а должна была быть")
+        action()
+        print(f"  {description:<35} -> ошибки нет")
     except (TypeError, ValueError) as error:
-        print(f"  {type(error).__name__}: {error}")
+        print(f"  {description:<35} -> {type(error).__name__}: {error}")
 
 
 # ---------------------------------------------------------------------------
-header("Сценарий 1. Создание объектов трёх типов, методы базового и дочернего класса")
+header("Сценарий 1. Объекты трёх типов, методы базового и дочерних классов")
 
-camry = Car("А123ВС777", "Toyota", "Camry", 2018, 145300, 62, 40)
-taxi = Taxi("Т001ТТ77", "Skoda", "Octavia", 2022, tariff=35, mileage=90000, tank_capacity=50, fuel_level=45)
-truck = Truck("Н500НН50", "KamAZ", "5490", 2020, max_load=20000, mileage=400000, tank_capacity=400, fuel_level=300)
-
+camry = Car("А123ВС777", "Toyota", "Camry", 2018, 145300)
+taxi = Taxi("Т010ТТ97", "Hyundai", "Solaris", 2019, tariff=25, seats=4, mileage=120500)
+truck = Truck("Н500НН50", "KamAZ", "5490", 2020, max_load=20000, mileage=400100)
 for car in (camry, taxi, truck):
-    print(car.display())
-    print()
+    print(car)
 
-print("Унаследованные методы работают у потомков без единой строки кода:")
-taxi.start_trip()
-print(f"  taxi.start_trip() -> статус {taxi.status}")
-print(f"  taxi.drive(10) -> ушло {taxi.drive(10):.1f} л, пробег {taxi.mileage}")
-taxi.finish_trip()
+taxi.drive(15)                                   # метод базового класса
+print("\ntaxi.drive(15) — метод Car, пробег:", taxi.mileage)
+price = taxi.complete_ride(12, passengers=3)     # собственный метод Taxi
+print(f"taxi.complete_ride(12, passengers=3) -> {price:g} руб., пробег {taxi.mileage}")
+try_it("taxi.complete_ride(5, passengers=5)", lambda: taxi.complete_ride(5, passengers=5))
 
-print("Собственные методы потомков:")
-print(f"  truck.load(5000) -> в кузове {truck.load(5000):.0f} кг")
-print(f"  truck.load(8000) -> в кузове {truck.load(8000):.0f} кг ({truck.load_percent:.0f} %)")
-print("  перегруз:")
-expect_error(truck.load, 10000)
-print("  у обычной машины метода load нет:")
-try:
-    camry.load(100)
-except AttributeError as error:
-    print(f"  AttributeError: {error}")
-
-print("Атрибут класса переопределён в потомке:")
-print(f"  Car.FUEL_CONSUMPTION = {Car.FUEL_CONSUMPTION}, Truck.FUEL_CONSUMPTION = {Truck.FUEL_CONSUMPTION}, "
-      f"Taxi.FUEL_CONSUMPTION = {Taxi.FUEL_CONSUMPTION} (унаследован)")
-print(f"  CATEGORY: {camry.CATEGORY} / {taxi.CATEGORY} / {truck.CATEGORY}")
-print("Счётчик один на всю иерархию: Car.total_created =", Car.total_created)
+truck.load(12000)
+print(f"truck.load(12000) -> груз {truck.cargo:g} кг")
+try_it("truck.load(9000)", lambda: truck.load(9000))
+print(f"truck.unload() -> выгружено {truck.unload():g} кг")
 
 # ---------------------------------------------------------------------------
-header("Сценарий 2. Переопределённый метод и isinstance()")
+header("Сценарий 2. super(), isinstance() и переопределённые атрибуты")
 
-print("__str__ переопределён в каждом классе (print делает разное):")
-for car in (camry, taxi, truck):
-    print("  ", car)
+print("Car.FUEL_CONSUMPTION =", Car.FUEL_CONSUMPTION,
+      "| Taxi:", Taxi.FUEL_CONSUMPTION, "| Truck:", Truck.FUEL_CONSUMPTION)
+print("isinstance(taxi, Car):  ", isinstance(taxi, Car))
+print("isinstance(taxi, Truck):", isinstance(taxi, Truck))
+print("type(taxi) is Car:      ", type(taxi) is Car)
+print("issubclass(Truck, Car): ", issubclass(Truck, Car))
+print("Taxi.__mro__:", " -> ".join(cls.__name__ for cls in Taxi.__mro__))
+print("repr(taxi):", repr(taxi))
 
-print("\nisinstance — потомок «является» базовым классом, но не наоборот:")
-print(f"  isinstance(taxi, Taxi)  = {isinstance(taxi, Taxi)}")
-print(f"  isinstance(taxi, Car)   = {isinstance(taxi, Car)}   <- такси — это тоже машина")
-print(f"  isinstance(camry, Taxi) = {isinstance(camry, Taxi)}  <- а машина — не такси")
-print(f"  type(taxi) is Car       = {type(taxi) is Car}  <- type() смотрит на точный класс")
-print(f"  issubclass(Truck, Car)  = {issubclass(Truck, Car)}")
-
-print("\nfuel_needed переопределён в Truck, а drive() — нет, но drive() это учитывает:")
-print(f"  пустой грузовик: {Truck('Х000ХХ00', 'MAN', 'TGX', 2019, 18000).fuel_needed(100):.1f} л/100 км")
-print(f"  с грузом {truck.current_load:.0f} кг: {truck.fuel_needed(100):.1f} л/100 км")
-truck.start_trip()
-used = truck.drive(100)
-print(f"  truck.drive(100) списал {used:.1f} л — версию fuel_needed выбрал Python, не мы")
-truck.finish_trip()
+created = Car.total_created
+try_it("Taxi(..., tariff=-5)", lambda: Taxi("К111КК77", "Kia", "Rio", 2020, tariff=-5))
+try_it("Truck(..., max_load='много')", lambda: Truck("К222КК77", "MAN", "TGS", 2015, "много"))
+try_it("Taxi с неверным номером", lambda: Taxi("К1", "Kia", "Rio", 2020, tariff=20))
+print("Счётчик Car.total_created не изменился:", Car.total_created == created)
 
 # ---------------------------------------------------------------------------
 header("Сценарий 3. Полиморфизм: один вызов — разное поведение")
 
-print("trip_cost(100) для каждого объекта:")
-for car in (camry, taxi, truck):
-    print(f"  {type(car).__name__:5} {car.brand:7} -> {car.trip_cost(100):8.0f} руб")
-
-print("\nАнти-паттерн (так делать НЕ надо):")
-print("    if isinstance(car, Taxi): ... elif isinstance(car, Truck): ... else: ...")
-print("Правильно: car.trip_cost(100) — объект сам знает свой класс.\n")
-
-print("Такси зарабатывает через собственный метод, который опирается на унаследованный drive():")
-taxi.start_trip()
-for km in (12, 7, 25):
-    fare = taxi.complete_ride(km)
-    print(f"  заказ {km:2} км -> {fare:.0f} руб; всего {taxi.earnings:.0f} руб за {taxi.rides} поездки")
-print("  Не хватает топлива — выручка не начисляется:")
-expect_error(taxi.complete_ride, 900)
-print(f"  earnings по-прежнему {taxi.earnings:.0f} руб, rides = {taxi.rides}")
-taxi.finish_trip()
+for car in (camry, taxi, truck):        # ни одного if по типу
+    print(f"{type(car).__name__:<5} trip_cost(100) = {car.trip_cost(100):7.2f} руб.")
+print("\nCar   — расход 8 л/100 км;")
+print("Taxi  — метод не переопределён, но свой атрибут FUEL_CONSUMPTION = 10;")
+print("Truck — метод переопределён: super().trip_cost() + дорожный сбор.")
 
 # ---------------------------------------------------------------------------
-header("Сценарий 4. Одна коллекция — разные типы, фильтрация по типу")
+header("Сценарий 4. Одна коллекция — разные типы")
 
-fleet = Fleet("Автопарк «Стрела»")
-fleet.add(camry)
-fleet.add(taxi)
-fleet.add(truck)
-fleet.add(Taxi("Т002ТТ77", "Kia", "Rio", 2021, tariff=28, fuel_level=20))
-fleet.add(Truck("Н501НН50", "MAN", "TGX", 2019, max_load=18000, tank_capacity=400, fuel_level=100))
-fleet.add(Car("В777АА199", "Lada", "Vesta", 2021, 30000, 55, 55))
-
+fleet = Fleet([camry, taxi, truck,
+               Taxi("В555ВВ77", "Kia", "K5", 2022, tariff=35, seats=3),
+               Car("М555ОР50", "Skoda", "Octavia", 2020, 88000)])
+fleet.sort(key=lambda car: car.year)
 print(fleet)
-print("\nПолиморфный вызов внутри коллекции (никаких проверок типа):")
-print(f"  выезд всего парка на 100 км обойдётся в {fleet.total_trip_cost(100):,.0f} руб".replace(",", " "))
 
-print("\nВыборки по типу возвращают новый Fleet:")
-print(fleet.get_only_taxis())
-print(fleet.get_only_trucks())
-print(fleet.get_only_plain_cars())
-print(fleet.get_only(Car))       # все, потому что все — потомки Car
-print("\nПопытка отфильтровать по не-классу:")
-expect_error(fleet.get_only, "Taxi")
-
-print("\nПоиск и сортировка из ЛР-2 работают с потомками как с обычными Car:")
-fleet.sort_by_year(newest_first=True)
-for car in fleet:
-    print(f"  {car.year}  {type(car).__name__:5}  {car.plate}")
-found = fleet.find_by_plate("н500нн50")
-print(f"  find_by_plate вернул объект класса {type(found).__name__}: {found.display().splitlines()[0]}")
+print("\nget_by_type(Taxi): ", [car.plate for car in fleet.get_by_type(Taxi)])
+print("get_by_type(Truck):", [car.plate for car in fleet.get_by_type(Truck)])
+print("get_by_type(Car):  ", len(fleet.get_by_type(Car)), "машин — такси и грузовик тоже Car")
+print("find_by_plate('Н500НН50'):", repr(fleet.find_by_plate("Н500НН50")))
+total = sum(car.trip_cost(100) for car in fleet)
+print(f"Топливо и сборы на 100 км для всего парка: {total:.2f} руб.")
