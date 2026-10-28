@@ -1,78 +1,44 @@
-"""ЛР-5 (из ЛР-4). Иерархия Car / Taxi / Truck, теперь с формальными контрактами.
+"""ЛР-5. Иерархия из ЛР-3 без изменений: Car -> Taxi, Truck (в одном файле)."""
 
-    Car(Printable, Comparable)          обычная машина
-     ├── Taxi(Car, Earnable)            зарабатывает на пассажирах
-     └── Truck(Car, Earnable)           зарабатывает на грузе
-
-Printable и Comparable «прикручены» к базовому классу, поэтому их получают
-все потомки. Earnable добавлен только к коммерческим машинам — обычная
-легковушка денег не приносит, и заставлять её реализовывать earn() было бы
-ложью в архитектуре.
-"""
-
-from interfaces import Comparable, Earnable, Printable
 from validate import (
     _validate_distance,
-    _validate_fuel_level,
-    _validate_liters,
+    _validate_int,
     _validate_mileage,
     _validate_plate,
-    _validate_positive_number,
-    _validate_tank_capacity,
+    _validate_positive,
     _validate_text,
     _validate_year,
 )
 
 
-class Car(Printable, Comparable):
-    """Конкретный автомобиль, стоящий на учёте под своим гос. номером.
+class Car:
+    """Конкретная машина автопарка. Однозначно определяется гос. номером."""
 
-    Это не «модель Toyota Camry» как товарная позиция, а именно та машина,
-    у которой есть пробег, остаток топлива и текущий статус. Отсюда следуют
-    два решения: пробег и топливо — изменяемые поля, а равенство двух
-    объектов определяется государственным номером.
-    """
-
-    # ---------- атрибуты КЛАССА: одни на все машины ----------
-
-    MIN_YEAR = 1886            # год первого автомобиля Бенца
+    # --- атрибуты класса: одни на все машины ---
+    MIN_YEAR = 1886            # год первого автомобиля
     MAX_YEAR = 2026            # текущий год
-    FUEL_CONSUMPTION = 8.0     # средний расход, л на 100 км
-    FUEL_PRICE = 65.0          # цена литра, руб (одна на все машины)
-    CATEGORY = "легковой"      # категория транспортного средства
+    FUEL_CONSUMPTION = 8.0     # расход топлива, л на 100 км
+    FUEL_PRICE = 60.0          # цена топлива, руб. за литр
 
-    # Допустимые статусы вынесены в константы: опечатка в имени константы
-    # даст AttributeError сразу, а опечатка в строке молча сломает сравнение.
     STATUS_GARAGE = "в гараже"
-    STATUS_TRIP = "в поездке"
     STATUS_SERVICE = "в ремонте"
 
-    total_created = 0          # счётчик созданных объектов (меняется)
+    total_created = 0          # счётчик созданных машин
 
-    # ---------- конструктор ----------
-
-    def __init__(self, plate, brand, model, year,
-                 mileage=0, tank_capacity=50.0, fuel_level=0.0):
+    def __init__(self, plate, brand, model, year, mileage=0):
         self._plate = _validate_plate(plate)
         self._brand = _validate_text(brand, "Марка")
         self._model = _validate_text(model, "Модель")
-        self._year = _validate_year(year, self.MIN_YEAR, self.MAX_YEAR)
+        self._year = _validate_year(year, Car.MIN_YEAR, Car.MAX_YEAR)
         self._mileage = _validate_mileage(mileage)
-        # Порядок важен: уровень топлива проверяется относительно
-        # УЖЕ проверенного объёма бака.
-        self._tank_capacity = _validate_tank_capacity(tank_capacity)
-        self._fuel_level = _validate_fuel_level(fuel_level, self._tank_capacity)
-        # Статус не передаётся снаружи: новая машина всегда начинает в гараже.
-        self._status = Car.STATUS_GARAGE
-
-        # Последней строкой — чтобы объект, упавший на валидации, не считался.
+        self._status = Car.STATUS_GARAGE   # новая машина всегда стоит в гараже
+        # Счётчик увеличиваем последним: машина, не прошедшая проверки, не считается.
         Car.total_created += 1
 
-    # ---------- свойства только для чтения ----------
+    # --- свойства только для чтения ---
 
     @property
     def plate(self):
-        """Гос. номер — идентификатор машины, менять его нельзя."""
         return self._plate
 
     @property
@@ -88,20 +54,11 @@ class Car(Printable, Comparable):
         return self._year
 
     @property
-    def tank_capacity(self):
-        return self._tank_capacity
-
-    @property
-    def fuel_level(self):
-        """Остаток топлива. Меняется только через drive() и refuel()."""
-        return self._fuel_level
-
-    @property
     def status(self):
-        """Текущее состояние. Меняется только методами перехода."""
+        """Сеттера нет: статус меняют только send_to_service() и finish_service()."""
         return self._status
 
-    # ---------- свойство с сеттером ----------
+    # --- свойство с сеттером ---
 
     @property
     def mileage(self):
@@ -109,338 +66,149 @@ class Car(Printable, Comparable):
 
     @mileage.setter
     def mileage(self, value):
-        """Пробег можно только увеличить (скрутить одометр нельзя)."""
+        """Пробег можно только увеличить: скручивать одометр нельзя."""
         value = _validate_mileage(value)
         if value < self._mileage:
-            raise ValueError(
-                f"Пробег нельзя уменьшить: было {self._mileage} км, передано {value} км"
-            )
+            raise ValueError(f"Пробег нельзя уменьшить: было {self._mileage} км, передано {value} км")
         self._mileage = value
 
-    # ---------- вычисляемые свойства (не хранятся, считаются на лету) ----------
+    # --- бизнес-методы ---
 
-    @property
-    def age(self):
-        """Возраст машины в годах."""
-        return Car.MAX_YEAR - self._year
+    def drive(self, distance):
+        """Проехать distance км. Машине в ремонте ездить нельзя."""
+        distance = _validate_distance(distance)
+        if self._status == Car.STATUS_SERVICE:
+            raise ValueError(f"Машина {self._plate} в ремонте, ехать нельзя")
+        self._mileage += distance
 
-    @property
-    def fuel_percent(self):
-        """Заполненность бака в процентах."""
-        return self._fuel_level / self._tank_capacity * 100
+    def trip_cost(self, distance):
+        """Стоимость топлива на поездку длиной distance км, руб."""
+        distance = _validate_distance(distance)
+        # Расход и цену берём через self: у Taxi и Truck свои FUEL_CONSUMPTION.
+        return distance / 100 * self.FUEL_CONSUMPTION * self.FUEL_PRICE
 
-    @property
-    def range_km(self):
-        """Сколько километров можно проехать на остатке топлива."""
-        return self._fuel_level / self.fuel_needed(100) * 100
-
-    @property
-    def is_available(self):
-        """Машина свободна: стоит в гараже и готова к выезду."""
-        return self._status == Car.STATUS_GARAGE
-
-    # ---------- вспомогательный расчёт ----------
-
-    def fuel_needed(self, distance):
-        """Сколько литров уйдёт на поездку заданной длины."""
-        return distance / 100 * self.FUEL_CONSUMPTION
-
-    # ---------- методы изменения состояния (только меняют статус) ----------
-
-    def start_trip(self):
-        """Гараж -> поездка. Нужен хоть какой-то бензин в баке."""
-        if self._status != Car.STATUS_GARAGE:
-            raise ValueError(f"Нельзя начать поездку: машина {self._status}")
-        if self._fuel_level <= 0:
-            raise ValueError("Нельзя начать поездку: бак пуст")
-        self._status = Car.STATUS_TRIP
-
-    def finish_trip(self):
-        """Поездка -> гараж."""
-        if self._status != Car.STATUS_TRIP:
-            raise ValueError(f"Нельзя завершить поездку: машина {self._status}")
-        self._status = Car.STATUS_GARAGE
+    # --- смена состояния ---
 
     def send_to_service(self):
-        """Гараж -> ремонт. Из поездки в ремонт не отправить — сначала вернись."""
-        if self._status != Car.STATUS_GARAGE:
-            raise ValueError(f"Нельзя отправить в ремонт: машина {self._status}")
+        """Гараж -> ремонт."""
+        if self._status == Car.STATUS_SERVICE:
+            raise ValueError(f"Машина {self._plate} уже в ремонте")
         self._status = Car.STATUS_SERVICE
 
     def finish_service(self):
         """Ремонт -> гараж."""
         if self._status != Car.STATUS_SERVICE:
-            raise ValueError(f"Нельзя завершить ремонт: машина {self._status}")
+            raise ValueError(f"Машина {self._plate} не в ремонте")
         self._status = Car.STATUS_GARAGE
 
-    # ---------- бизнес-методы (меняют данные, проходят через «ворота» статуса) ----------
-
-    def drive(self, distance):
-        """Проехать distance км. Возвращает, сколько литров ушло.
-
-        Все проверки — ДО первого присваивания. Если что-то не так,
-        объект остаётся ровно в том состоянии, в каком был.
-        """
-        distance = _validate_distance(distance)
-        if self._status != Car.STATUS_TRIP:
-            raise ValueError(f"Нельзя ехать: машина {self._status}, сначала start_trip()")
-        needed = self.fuel_needed(distance)
-        if needed > self._fuel_level:
-            raise ValueError(
-                f"Не хватит топлива: нужно {needed:.1f} л, в баке {self._fuel_level:.1f} л"
-            )
-        # round гасит накопление ошибки двоичной арифметики (0.1 + 0.2 != 0.3)
-        self._fuel_level = round(self._fuel_level - needed, 2)
-        self._mileage += distance
-        return needed
-
-    def refuel(self, liters):
-        """Залить liters литров. Возвращает новый уровень топлива."""
-        liters = _validate_liters(liters)
-        if self._status == Car.STATUS_SERVICE:
-            raise ValueError("Нельзя заправлять машину в ремонте")
-        free = self._tank_capacity - self._fuel_level
-        if liters > free:
-            raise ValueError(f"В бак влезет ещё {free:.1f} л, а не {liters} л")
-        self._fuel_level = round(self._fuel_level + liters, 2)
-        return self._fuel_level
-
-    # ---------- общий интерфейс поведения (потомки переопределяют) ----------
+    # --- общий метод вывода: потомки его переопределяют ---
 
     def display(self):
-        """Подробная карточка машины. Потомки дополняют её своими полями."""
-        mileage = f"{self._mileage:,}".replace(",", " ")
-        return (f"[{self.CATEGORY}] {self._brand} {self._model}, {self._year} г.\n"
-                f"    номер {self._plate}, пробег {mileage} км, статус: {self._status}\n"
-                f"    топливо {self._fuel_level:.1f} / {self._tank_capacity:.0f} л "
-                f"({self.fuel_percent:.0f} %), запас хода {self.range_km:.0f} км")
+        """Описание машины одной строкой. Потомки дополняют его своими полями."""
+        mileage = f"{self._mileage:,}".replace(",", " ")   # 145300 -> "145 300"
+        return (f"{self._brand} {self._model} ({self._plate}), {self._year} г., "
+                f"пробег {mileage} км, {self._status}")
 
-    def trip_cost(self, distance):
-        """Во что обойдётся поездка на distance км.
-
-        Для обычной машины это только топливо. Такси и грузовик считают иначе,
-        но вызывающий код об этом не знает — он просто зовёт trip_cost().
-        """
-        distance = _validate_distance(distance)
-        return self.fuel_needed(distance) * self.FUEL_PRICE
-
-    def compare_to(self, other):
-        """Контракт Comparable: сравниваем по пробегу.
-
-        Критерий ОДИН на всю иерархию — иначе сортировка смешанного списка
-        стала бы противоречивой (такси по выручке, грузовик по грузу...).
-        """
-        if not isinstance(other, Car):
-            raise TypeError(f"Сравнивать можно только с Car, получено {type(other).__name__}")
-        return self._mileage - other._mileage
-
-    # ---------- магические методы ----------
+    # --- магические методы ---
 
     def __str__(self):
-        """Строка для человека: print(car)."""
-        mileage = f"{self._mileage:,}".replace(",", " ")
-        return (f"{self._brand} {self._model} ({self._plate}), {self._year} г., "
-                f"пробег {mileage} км, бак {self.fuel_percent:.0f} %, {self._status}")
+        # self может быть Taxi или Truck: тогда вызовется их display().
+        return self.display()
 
     def __repr__(self):
-        """Строка для разработчика: по ней объект можно воссоздать."""
-        return (f"{type(self).__name__}(plate={self._plate!r}, brand={self._brand!r}, "
-                f"model={self._model!r}, year={self._year!r}, "
-                f"mileage={self._mileage!r}, tank_capacity={self._tank_capacity!r}, "
-                f"fuel_level={self._fuel_level!r})")
+        return (f"Car(plate={self._plate!r}, brand={self._brand!r}, model={self._model!r}, "
+                f"year={self._year}, mileage={self._mileage})")
 
     def __eq__(self, other):
-        """Две машины равны, если совпал гос. номер.
-
-        Пробег, топливо и статус не участвуют: та же машина после поездки
-        остаётся той же машиной.
-        """
+        """Машины равны, если совпадает гос. номер. Пробег и статус не важны."""
         if not isinstance(other, Car):
             return NotImplemented
         return self._plate == other._plate
 
     def __hash__(self):
-        # Определив __eq__, мы обнулили __hash__ по умолчанию. Возвращаем
-        # его, иначе объект нельзя положить в set — а это понадобится в ЛР-2.
+        # Определив __eq__, мы теряем __hash__ по умолчанию. Возвращаем его,
+        # чтобы машину можно было положить в set или сделать ключом словаря.
         return hash(self._plate)
 
 
-class Taxi(Car, Earnable):
-    """Такси: обычная машина, которая берёт деньги за километры."""
+class Taxi(Car):
+    """Такси: возит пассажиров по тарифу за километр."""
 
-    CATEGORY = "такси"          # переопределяем атрибут класса
-    BOARDING_FEE = 150.0        # плата за посадку, руб
+    FUEL_CONSUMPTION = 10.0    # в городе расход выше, чем у обычной машины
+    BASE_FARE = 100.0          # стоимость посадки, руб.
+    MAX_SEATS = 8
 
-    def __init__(self, plate, brand, model, year, tariff,
-                 mileage=0, tank_capacity=50.0, fuel_level=0.0):
-        # Сначала — базовая часть объекта (гос. номер, марка, бак...).
-        super().__init__(plate, brand, model, year, mileage, tank_capacity, fuel_level)
-        # Потом — то, что есть только у такси. Два новых атрибута:
-        self._tariff = _validate_positive_number(tariff, "Тариф")   # руб за км
-        self._earnings = 0.0                                          # заработано всего
-        self._rides = 0                                               # количество поездок
+    def __init__(self, plate, brand, model, year, tariff, seats=4, mileage=0):
+        tariff = _validate_positive(tariff, "Тариф")
+        seats = _validate_int(seats, "Мест для пассажиров", 1, Taxi.MAX_SEATS)
+        super().__init__(plate, brand, model, year, mileage)
+        self._tariff = tariff      # руб. за км
+        self._seats = seats
 
     @property
     def tariff(self):
         return self._tariff
 
-    @tariff.setter
-    def tariff(self, value):
-        """Тариф можно менять, но только на положительное число."""
-        self._tariff = _validate_positive_number(value, "Тариф")
-
     @property
-    def earnings(self):
-        return self._earnings
+    def seats(self):
+        return self._seats
 
-    @property
-    def rides(self):
-        return self._rides
-
-    # --- переопределение базового поведения ---
-
-    def trip_cost(self, distance):
-        """Для такси стоимость поездки — это то, что платит пассажир."""
-        return self.BOARDING_FEE + self._tariff * distance
-
-    # --- новый метод, которого у Car нет ---
-
-    def complete_ride(self, distance):
-        """Выполнить заказ: проехать distance км и записать выручку.
-
-        drive() унаследован от Car и сам проверит статус и топливо;
-        если он упадёт — выручка не начислится (строка ниже не выполнится).
-        """
-        self.drive(distance)
-        fare = self.trip_cost(distance)
-        self._earnings += fare
-        self._rides += 1
-        return fare
-
-    def earn(self, distance):
-        """Контракт Earnable: для такси «заработать» = выполнить заказ."""
-        return self.complete_ride(distance)
-
-    # --- представление ---
+    def complete_ride(self, distance, passengers=1):
+        """Выполнить заказ: проехать distance км и вернуть цену поездки, руб."""
+        _validate_int(passengers, "Пассажиров", 1, self._seats)
+        self.drive(distance)       # метод Car: проверит расстояние и что машина не в ремонте
+        return Taxi.BASE_FARE + self._tariff * distance
 
     def display(self):
-        """Карточка Car + строка про тариф и выручку."""
-        earnings = f"{self._earnings:,.0f}".replace(",", " ")
-        return (super().display() +
-                f"\n    тариф {self._tariff:.0f} руб/км, поездок {self._rides}, "
-                f"заработано {earnings} руб")
-
-    def __str__(self):
-        return super().__str__() + f", тариф {self._tariff:.0f} руб/км"
+        return f"Такси {super().display()}, тариф {self._tariff:g} руб/км, мест {self._seats}"
 
     def __repr__(self):
-        return (f"Taxi(plate={self._plate!r}, brand={self._brand!r}, model={self._model!r}, "
-                f"year={self._year!r}, tariff={self._tariff!r}, mileage={self._mileage!r}, "
-                f"tank_capacity={self._tank_capacity!r}, fuel_level={self._fuel_level!r})")
+        return (f"Taxi(plate={self.plate!r}, brand={self.brand!r}, model={self.model!r}, "
+                f"year={self.year}, tariff={self._tariff}, seats={self._seats}, "
+                f"mileage={self.mileage})")
 
 
-class Truck(Car, Earnable):
-    """Грузовик: расход растёт с грузом, за трассу платит «Платону»."""
+class Truck(Car):
+    """Грузовик: возит груз в пределах грузоподъёмности."""
 
-    CATEGORY = "грузовой"
-    FUEL_CONSUMPTION = 25.0             # порожний расход, л/100 км
-    EXTRA_CONSUMPTION_PER_TONNE = 2.0   # добавка к расходу на каждую тонну груза
-    PLATON_RATE = 3.0                   # сбор за проезд по трассам, руб/км
-    RATE_PER_TONNE_KM = 12.0            # выручка за перевозку 1 т на 1 км, руб
+    FUEL_CONSUMPTION = 30.0    # л на 100 км
+    TOLL_PER_KM = 3.0          # дорожный сбор для грузовиков, руб. за км
 
-    def __init__(self, plate, brand, model, year, max_load,
-                 mileage=0, tank_capacity=300.0, fuel_level=0.0):
-        super().__init__(plate, brand, model, year, mileage, tank_capacity, fuel_level)
-        self._max_load = _validate_positive_number(max_load, "Грузоподъёмность")  # кг
-        self._current_load = 0.0                                                    # кг
-        self._earnings = 0.0
-        self._deliveries = 0
+    def __init__(self, plate, brand, model, year, max_load, mileage=0):
+        max_load = _validate_positive(max_load, "Грузоподъёмность")
+        super().__init__(plate, brand, model, year, mileage)
+        self._max_load = max_load  # кг
+        self._cargo = 0.0          # сколько груза в кузове сейчас, кг
 
     @property
     def max_load(self):
         return self._max_load
 
     @property
-    def current_load(self):
-        return self._current_load
-
-    @property
-    def load_percent(self):
-        return self._current_load / self._max_load * 100
-
-    @property
-    def earnings(self):
-        return self._earnings
-
-    @property
-    def deliveries(self):
-        return self._deliveries
-
-    # --- новые методы ---
+    def cargo(self):
+        return self._cargo
 
     def load(self, kg):
-        """Погрузить kg килограммов. Только в гараже и только в пределах грузоподъёмности."""
-        kg = _validate_positive_number(kg, "Масса груза")
-        if self._status != Car.STATUS_GARAGE:
-            raise ValueError(f"Грузить можно только в гараже, а машина {self._status}")
-        if self._current_load + kg > self._max_load:
-            free = self._max_load - self._current_load
-            raise ValueError(f"Перегруз: свободно {free:.0f} кг, а грузят {kg:.0f} кг")
-        self._current_load += kg
-        return self._current_load
+        """Погрузить kg кг. Больше грузоподъёмности нельзя."""
+        kg = _validate_positive(kg, "Масса груза")
+        if self._cargo + kg > self._max_load:
+            free = self._max_load - self._cargo
+            raise ValueError(f"Перегруз: можно догрузить ещё {free:g} кг, а не {kg:g} кг")
+        self._cargo += kg
 
     def unload(self):
-        """Разгрузить полностью. Возвращает, сколько выгрузили."""
-        if self._status != Car.STATUS_GARAGE:
-            raise ValueError(f"Разгружать можно только в гараже, а машина {self._status}")
-        unloaded = self._current_load
-        self._current_load = 0.0
+        """Выгрузить всё и вернуть массу выгруженного, кг."""
+        unloaded = self._cargo
+        self._cargo = 0.0
         return unloaded
 
-    def deliver(self, distance):
-        """Перевезти текущий груз на distance км и получить оплату."""
-        if self._current_load <= 0:
-            raise ValueError("Нечего везти: кузов пуст")
-        self.drive(distance)
-        income = self._current_load / 1000 * self.RATE_PER_TONNE_KM * distance
-        self._earnings += income
-        self._deliveries += 1
-        return income
-
-    def earn(self, distance):
-        """Контракт Earnable: для грузовика «заработать» = выполнить рейс."""
-        return self.deliver(distance)
-
-    # --- переопределение базового поведения ---
-
-    def fuel_needed(self, distance):
-        """Расход = порожний + добавка за груз.
-
-        Этот метод вызывает унаследованный drive(): в Car написано
-        `self.fuel_needed(distance)`, и для Truck Python найдёт ЭТУ версию.
-        Так один и тот же drive() ведёт себя по-разному для разных классов.
-        """
-        base = super().fuel_needed(distance)
-        extra = distance / 100 * self.EXTRA_CONSUMPTION_PER_TONNE * (self._current_load / 1000)
-        return base + extra
-
     def trip_cost(self, distance):
-        """Топливо (с учётом груза, через fuel_needed) + дорожный сбор."""
-        return super().trip_cost(distance) + self.PLATON_RATE * distance
-
-    # --- представление ---
+        """Топливо (считает Car, но с расходом грузовика) + дорожный сбор."""
+        return super().trip_cost(distance) + Truck.TOLL_PER_KM * distance
 
     def display(self):
-        earnings = f"{self._earnings:,.0f}".replace(",", " ")
-        return (super().display() +
-                f"\n    груз {self._current_load:.0f} / {self._max_load:.0f} кг "
-                f"({self.load_percent:.0f} %), расход сейчас {self.fuel_needed(100):.1f} л/100 км"
-                f"\n    рейсов {self._deliveries}, заработано {earnings} руб")
-
-    def __str__(self):
-        return super().__str__() + f", груз {self._current_load:.0f}/{self._max_load:.0f} кг"
+        return f"Грузовик {super().display()}, груз {self._cargo:g} из {self._max_load:g} кг"
 
     def __repr__(self):
-        return (f"Truck(plate={self._plate!r}, brand={self._brand!r}, model={self._model!r}, "
-                f"year={self._year!r}, max_load={self._max_load!r}, mileage={self._mileage!r}, "
-                f"tank_capacity={self._tank_capacity!r}, fuel_level={self._fuel_level!r})")
+        return (f"Truck(plate={self.plate!r}, brand={self.brand!r}, model={self.model!r}, "
+                f"year={self.year}, max_load={self._max_load}, mileage={self.mileage})")
