@@ -1,137 +1,53 @@
-"""Проверки корректности данных для класса Car.
+"""ЛР-1. Проверки входных данных для класса Car.
 
-Правило для всех функций: сначала проверяем ТИП, потом ЗНАЧЕНИЕ.
-Если сделать наоборот, то выражение вроде `"пять" < 0` упадёт с невнятной
-ошибкой сравнения строки и числа, и пользователь не поймёт, что не так.
-
-Каждая функция либо возвращает проверенное (и при необходимости
-нормализованное) значение, либо бросает исключение:
-  * TypeError  — пришёл не тот тип;
-  * ValueError — тип верный, но значение бессмысленное.
-
-Функции начинаются с подчёркивания: это внутренний инструмент модели,
-а не публичный API.
+Каждая функция возвращает проверенное значение или бросает исключение:
+  TypeError  — пришёл не тот тип;
+  ValueError — тип верный, но значение недопустимое.
+Сначала проверяем тип, потом значение: иначе сравнение вроде "пять" < 0
+упало бы с непонятной ошибкой.
 """
 
-_PLATE_MIN_LENGTH = 6       # минимум символов в гос. номере
-_PLATE_MAX_LENGTH = 9       # максимум (А123ВС777 — ровно 9)
-_TEXT_MAX_LENGTH = 50       # марка/модель длиннее — почти наверняка ошибка
-_TANK_MAX_CAPACITY = 500.0  # литров; больше не бывает даже у грузовиков
 
-
-# --- общие проверки типа (написаны один раз, используются везде) ---
-
-def _ensure_str(value, field_name):
-    """Убедиться, что value — непустая строка. Возвращает её без пробелов по краям."""
+def _validate_text(value, field_name):
+    """Непустая строка. Пробелы по краям обрезаются."""
     if not isinstance(value, str):
         raise TypeError(f"{field_name}: ожидалась строка, получено {type(value).__name__}")
     value = value.strip()
     if not value:
-        raise ValueError(f"{field_name}: строка не может быть пустой")
+        raise ValueError(f"{field_name}: пустая строка")
     return value
 
-
-def _ensure_int(value, field_name):
-    """Убедиться, что value — целое число (bool не считается!)."""
-    # bool — подкласс int: isinstance(True, int) == True.
-    # Без первой проверки Car(..., year=True) создал бы машину 1-го года выпуска.
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(f"{field_name}: ожидалось целое число, получено {type(value).__name__}")
-    return value
-
-
-def _ensure_number(value, field_name):
-    """Убедиться, что value — число (int или float, но не bool). Возвращает float."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise TypeError(f"{field_name}: ожидалось число, получено {type(value).__name__}")
-    return float(value)
-
-
-# --- проверки конкретных полей: поверх типа добавляют правило диапазона ---
 
 def _validate_plate(plate):
-    """Гос. номер: непустая строка 6–9 символов. Нормализуется к верхнему регистру без пробелов."""
-    plate = _ensure_str(plate, "Гос. номер")
-    plate = plate.upper().replace(" ", "")
-    if not (_PLATE_MIN_LENGTH <= len(plate) <= _PLATE_MAX_LENGTH):
-        raise ValueError(
-            f"Гос. номер: ожидалось от {_PLATE_MIN_LENGTH} до {_PLATE_MAX_LENGTH} "
-            f"символов, получено {len(plate)} ({plate!r})"
-        )
+    """Гос. номер: 6–9 символов, приводится к верхнему регистру без пробелов."""
+    plate = _validate_text(plate, "Гос. номер").upper().replace(" ", "")
+    if not 6 <= len(plate) <= 9:
+        raise ValueError(f"Гос. номер: ожидалось 6–9 символов, получено {len(plate)} ({plate!r})")
     return plate
 
 
-def _validate_text(value, field_name):
-    """Марка, модель и прочий текст: непустая строка разумной длины."""
-    value = _ensure_str(value, field_name)
-    if len(value) > _TEXT_MAX_LENGTH:
-        raise ValueError(f"{field_name}: не длиннее {_TEXT_MAX_LENGTH} символов")
+def _validate_int(value, field_name, min_value, max_value=None):
+    """Целое число не меньше min_value и не больше max_value (если он задан)."""
+    # bool — подкласс int: без этой проверки год True превратился бы в 1.
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{field_name}: ожидалось целое число, получено {type(value).__name__}")
+    if value < min_value:
+        raise ValueError(f"{field_name}: ожидалось не меньше {min_value}, получено {value}")
+    if max_value is not None and value > max_value:
+        raise ValueError(f"{field_name}: ожидалось не больше {max_value}, получено {value}")
     return value
 
 
 def _validate_year(year, min_year, max_year):
-    """Год выпуска: целое число в диапазоне [min_year, max_year]."""
-    year = _ensure_int(year, "Год выпуска")
-    if not (min_year <= year <= max_year):
-        raise ValueError(f"Год выпуска: ожидался от {min_year} до {max_year}, получено {year}")
-    return year
+    """Год выпуска в диапазоне [min_year, max_year]."""
+    return _validate_int(year, "Год выпуска", min_year, max_year)
 
 
 def _validate_mileage(mileage):
-    """Пробег: целое неотрицательное число километров."""
-    mileage = _ensure_int(mileage, "Пробег")
-    if mileage < 0:
-        raise ValueError(f"Пробег не может быть отрицательным, получено {mileage}")
-    return mileage
-
-
-def _validate_tank_capacity(capacity):
-    """Объём бака: положительное число литров, не больше разумного максимума."""
-    capacity = _ensure_number(capacity, "Объём бака")
-    if capacity <= 0:
-        raise ValueError(f"Объём бака должен быть больше нуля, получено {capacity}")
-    if capacity > _TANK_MAX_CAPACITY:
-        raise ValueError(f"Объём бака не больше {_TANK_MAX_CAPACITY} л, получено {capacity}")
-    return capacity
-
-
-def _validate_fuel_level(fuel, capacity):
-    """Остаток топлива: число от 0 до объёма бака включительно."""
-    fuel = _ensure_number(fuel, "Уровень топлива")
-    if fuel < 0:
-        raise ValueError(f"Уровень топлива не может быть отрицательным, получено {fuel}")
-    if fuel > capacity:
-        raise ValueError(f"В бак объёмом {capacity} л нельзя залить {fuel} л")
-    return fuel
+    """Пробег: целое число километров, не меньше 0."""
+    return _validate_int(mileage, "Пробег", 0)
 
 
 def _validate_distance(distance):
-    """Расстояние поездки: целое положительное число километров."""
-    distance = _ensure_int(distance, "Расстояние")
-    if distance <= 0:
-        raise ValueError(f"Расстояние должно быть больше нуля, получено {distance}")
-    return distance
-
-
-def _validate_liters(liters):
-    """Объём заправки: положительное число литров."""
-    liters = _ensure_number(liters, "Объём заправки")
-    if liters <= 0:
-        raise ValueError(f"Объём заправки должен быть больше нуля, получено {liters}")
-    return liters
-
-
-def _validate_non_negative_number(value, field_name):
-    """Неотрицательное число (деньги, тариф, груз). Возвращает float."""
-    value = _ensure_number(value, field_name)
-    if value < 0:
-        raise ValueError(f"{field_name} не может быть отрицательным, получено {value}")
-    return value
-
-
-def _validate_positive_number(value, field_name):
-    """Строго положительное число (тариф, грузоподъёмность). Возвращает float."""
-    value = _ensure_number(value, field_name)
-    if value <= 0:
-        raise ValueError(f"{field_name} должен быть больше нуля, получено {value}")
-    return value
+    """Расстояние поездки: целое число километров, не меньше 1."""
+    return _validate_int(distance, "Расстояние", 1)
