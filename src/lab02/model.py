@@ -1,69 +1,46 @@
-"""ЛР-1. Модель предметной области «Транспорт»: класс Car.
+"""ЛР-2 (из ЛР-1 без изменений). Класс Car — машина автопарка.
 
-В этом файле — только логика класса. Никаких print() и input():
-модель не знает, кто и как будет её показывать (консоль, файл, окно).
+Здесь только логика класса: никаких print() и input().
+Все проверки данных лежат в validate.py.
 """
 
 from validate import (
     _validate_distance,
-    _validate_fuel_level,
-    _validate_liters,
     _validate_mileage,
     _validate_plate,
-    _validate_tank_capacity,
     _validate_text,
     _validate_year,
 )
 
 
 class Car:
-    """Конкретный автомобиль, стоящий на учёте под своим гос. номером.
+    """Конкретная машина автопарка. Однозначно определяется гос. номером."""
 
-    Это не «модель Toyota Camry» как товарная позиция, а именно та машина,
-    у которой есть пробег, остаток топлива и текущий статус. Отсюда следуют
-    два решения: пробег и топливо — изменяемые поля, а равенство двух
-    объектов определяется государственным номером.
-    """
-
-    # ---------- атрибуты КЛАССА: одни на все машины ----------
-
-    MIN_YEAR = 1886            # год первого автомобиля Бенца
+    # --- атрибуты класса: одни на все машины ---
+    MIN_YEAR = 1886            # год первого автомобиля
     MAX_YEAR = 2026            # текущий год
-    FUEL_CONSUMPTION = 8.0     # средний расход, л на 100 км
-    CATEGORY = "легковой"      # категория транспортного средства
+    FUEL_CONSUMPTION = 8.0     # расход топлива, л на 100 км
+    FUEL_PRICE = 60.0          # цена топлива, руб. за литр
 
-    # Допустимые статусы вынесены в константы: опечатка в имени константы
-    # даст AttributeError сразу, а опечатка в строке молча сломает сравнение.
     STATUS_GARAGE = "в гараже"
-    STATUS_TRIP = "в поездке"
     STATUS_SERVICE = "в ремонте"
 
-    total_created = 0          # счётчик созданных объектов (меняется)
+    total_created = 0          # счётчик созданных машин
 
-    # ---------- конструктор ----------
-
-    def __init__(self, plate, brand, model, year,
-                 mileage=0, tank_capacity=50.0, fuel_level=0.0):
+    def __init__(self, plate, brand, model, year, mileage=0):
         self._plate = _validate_plate(plate)
         self._brand = _validate_text(brand, "Марка")
         self._model = _validate_text(model, "Модель")
-        self._year = _validate_year(year, self.MIN_YEAR, self.MAX_YEAR)
+        self._year = _validate_year(year, Car.MIN_YEAR, Car.MAX_YEAR)
         self._mileage = _validate_mileage(mileage)
-        # Порядок важен: уровень топлива проверяется относительно
-        # УЖЕ проверенного объёма бака.
-        self._tank_capacity = _validate_tank_capacity(tank_capacity)
-        self._fuel_level = _validate_fuel_level(fuel_level, self._tank_capacity)
-        # Статус не передаётся снаружи: новая машина всегда начинает в гараже.
-        self._status = Car.STATUS_GARAGE
-
-        # Последней строкой — чтобы объект, упавший на валидации, не считался.
+        self._status = Car.STATUS_GARAGE   # новая машина всегда стоит в гараже
+        # Счётчик увеличиваем последним: машина, не прошедшая проверки, не считается.
         Car.total_created += 1
 
-    # ---------- свойства только для чтения ----------
+    # --- свойства только для чтения ---
 
     @property
     def plate(self):
-        """Гос. номер — идентификатор машины, менять его нельзя."""
         return self._plate
 
     @property
@@ -79,20 +56,11 @@ class Car:
         return self._year
 
     @property
-    def tank_capacity(self):
-        return self._tank_capacity
-
-    @property
-    def fuel_level(self):
-        """Остаток топлива. Меняется только через drive() и refuel()."""
-        return self._fuel_level
-
-    @property
     def status(self):
-        """Текущее состояние. Меняется только методами перехода."""
+        """Сеттера нет: статус меняют только send_to_service() и finish_service()."""
         return self._status
 
-    # ---------- свойство с сеттером ----------
+    # --- свойство с сеттером ---
 
     @property
     def mileage(self):
@@ -100,128 +68,59 @@ class Car:
 
     @mileage.setter
     def mileage(self, value):
-        """Пробег можно только увеличить (скрутить одометр нельзя)."""
+        """Пробег можно только увеличить: скручивать одометр нельзя."""
         value = _validate_mileage(value)
         if value < self._mileage:
-            raise ValueError(
-                f"Пробег нельзя уменьшить: было {self._mileage} км, передано {value} км"
-            )
+            raise ValueError(f"Пробег нельзя уменьшить: было {self._mileage} км, передано {value} км")
         self._mileage = value
 
-    # ---------- вычисляемые свойства (не хранятся, считаются на лету) ----------
+    # --- бизнес-методы ---
 
-    @property
-    def age(self):
-        """Возраст машины в годах."""
-        return Car.MAX_YEAR - self._year
+    def drive(self, distance):
+        """Проехать distance км. Машине в ремонте ездить нельзя."""
+        distance = _validate_distance(distance)
+        if self._status == Car.STATUS_SERVICE:
+            raise ValueError(f"Машина {self._plate} в ремонте, ехать нельзя")
+        self._mileage += distance
 
-    @property
-    def fuel_percent(self):
-        """Заполненность бака в процентах."""
-        return self._fuel_level / self._tank_capacity * 100
+    def trip_cost(self, distance):
+        """Стоимость топлива на поездку длиной distance км, руб."""
+        distance = _validate_distance(distance)
+        # Расход и цену берём через self: так их смогут переопределить потомки (ЛР-3).
+        return distance / 100 * self.FUEL_CONSUMPTION * self.FUEL_PRICE
 
-    @property
-    def range_km(self):
-        """Сколько километров можно проехать на остатке топлива."""
-        return self._fuel_level / self.fuel_needed(100) * 100
-
-    @property
-    def is_available(self):
-        """Машина свободна: стоит в гараже и готова к выезду."""
-        return self._status == Car.STATUS_GARAGE
-
-    # ---------- вспомогательный расчёт ----------
-
-    def fuel_needed(self, distance):
-        """Сколько литров уйдёт на поездку заданной длины."""
-        return distance / 100 * self.FUEL_CONSUMPTION
-
-    # ---------- методы изменения состояния (только меняют статус) ----------
-
-    def start_trip(self):
-        """Гараж -> поездка. Нужен хоть какой-то бензин в баке."""
-        if self._status != Car.STATUS_GARAGE:
-            raise ValueError(f"Нельзя начать поездку: машина {self._status}")
-        if self._fuel_level <= 0:
-            raise ValueError("Нельзя начать поездку: бак пуст")
-        self._status = Car.STATUS_TRIP
-
-    def finish_trip(self):
-        """Поездка -> гараж."""
-        if self._status != Car.STATUS_TRIP:
-            raise ValueError(f"Нельзя завершить поездку: машина {self._status}")
-        self._status = Car.STATUS_GARAGE
+    # --- смена состояния ---
 
     def send_to_service(self):
-        """Гараж -> ремонт. Из поездки в ремонт не отправить — сначала вернись."""
-        if self._status != Car.STATUS_GARAGE:
-            raise ValueError(f"Нельзя отправить в ремонт: машина {self._status}")
+        """Гараж -> ремонт."""
+        if self._status == Car.STATUS_SERVICE:
+            raise ValueError(f"Машина {self._plate} уже в ремонте")
         self._status = Car.STATUS_SERVICE
 
     def finish_service(self):
         """Ремонт -> гараж."""
         if self._status != Car.STATUS_SERVICE:
-            raise ValueError(f"Нельзя завершить ремонт: машина {self._status}")
+            raise ValueError(f"Машина {self._plate} не в ремонте")
         self._status = Car.STATUS_GARAGE
 
-    # ---------- бизнес-методы (меняют данные, проходят через «ворота» статуса) ----------
-
-    def drive(self, distance):
-        """Проехать distance км. Возвращает, сколько литров ушло.
-
-        Все проверки — ДО первого присваивания. Если что-то не так,
-        объект остаётся ровно в том состоянии, в каком был.
-        """
-        distance = _validate_distance(distance)
-        if self._status != Car.STATUS_TRIP:
-            raise ValueError(f"Нельзя ехать: машина {self._status}, сначала start_trip()")
-        needed = self.fuel_needed(distance)
-        if needed > self._fuel_level:
-            raise ValueError(
-                f"Не хватит топлива: нужно {needed:.1f} л, в баке {self._fuel_level:.1f} л"
-            )
-        # round гасит накопление ошибки двоичной арифметики (0.1 + 0.2 != 0.3)
-        self._fuel_level = round(self._fuel_level - needed, 2)
-        self._mileage += distance
-        return needed
-
-    def refuel(self, liters):
-        """Залить liters литров. Возвращает новый уровень топлива."""
-        liters = _validate_liters(liters)
-        if self._status == Car.STATUS_SERVICE:
-            raise ValueError("Нельзя заправлять машину в ремонте")
-        free = self._tank_capacity - self._fuel_level
-        if liters > free:
-            raise ValueError(f"В бак влезет ещё {free:.1f} л, а не {liters} л")
-        self._fuel_level = round(self._fuel_level + liters, 2)
-        return self._fuel_level
-
-    # ---------- магические методы ----------
+    # --- магические методы ---
 
     def __str__(self):
-        """Строка для человека: print(car)."""
-        mileage = f"{self._mileage:,}".replace(",", " ")
+        mileage = f"{self._mileage:,}".replace(",", " ")   # 145300 -> "145 300"
         return (f"{self._brand} {self._model} ({self._plate}), {self._year} г., "
-                f"пробег {mileage} км, бак {self.fuel_percent:.0f} %, {self._status}")
+                f"пробег {mileage} км, {self._status}")
 
     def __repr__(self):
-        """Строка для разработчика: по ней объект можно воссоздать."""
-        return (f"Car(plate={self._plate!r}, brand={self._brand!r}, "
-                f"model={self._model!r}, year={self._year!r}, "
-                f"mileage={self._mileage!r}, tank_capacity={self._tank_capacity!r}, "
-                f"fuel_level={self._fuel_level!r})")
+        return (f"Car(plate={self._plate!r}, brand={self._brand!r}, model={self._model!r}, "
+                f"year={self._year}, mileage={self._mileage})")
 
     def __eq__(self, other):
-        """Две машины равны, если совпал гос. номер.
-
-        Пробег, топливо и статус не участвуют: та же машина после поездки
-        остаётся той же машиной.
-        """
+        """Машины равны, если совпадает гос. номер. Пробег и статус не важны."""
         if not isinstance(other, Car):
             return NotImplemented
         return self._plate == other._plate
 
     def __hash__(self):
-        # Определив __eq__, мы обнулили __hash__ по умолчанию. Возвращаем
-        # его, иначе объект нельзя положить в set — а это понадобится в ЛР-2.
+        # Определив __eq__, мы теряем __hash__ по умолчанию. Возвращаем его,
+        # чтобы машину можно было положить в set или сделать ключом словаря.
         return hash(self._plate)

@@ -1,140 +1,83 @@
-"""ЛР-2. Контейнер объектов: Fleet (автопарк).
+"""ЛР-2. Fleet — автопарк, коллекция объектов Car.
 
-Fleet — это НЕ автомобиль. Это отдельная сущность, которая управляет
-группой автомобилей: добавляет, удаляет, ищет, сортирует, фильтрует.
-Сам Car ничего не знает о том, что лежит в каком-то парке.
+Fleet не наследуется от list, а хранит список внутри (композиция):
+так снаружи доступны только наши методы с проверками, а не append/insert.
 """
 
 from model import Car
-from validate import _validate_plate
 
 
 class Fleet:
-    """Автопарк: упорядоченный набор уникальных (по гос. номеру) автомобилей."""
+    """Автопарк: машины без повторов гос. номера."""
 
-    def __init__(self, name="Автопарк"):
-        self._name = name
-        # Изменяемый список создаётся в конструкторе, а не в теле класса:
-        # иначе он был бы ОДИН на все автопарки.
+    def __init__(self, cars=()):
         self._items = []
+        for car in cars:          # каждая машина проходит те же проверки, что и в add()
+            self.add(car)
 
-    # ---------- задание на 3: базовое управление ----------
-
-    @property
-    def name(self):
-        return self._name
+    # --- задание на 3 ---
 
     def add(self, car):
-        """Добавить машину. Только Car, только без дубликата по номеру."""
+        """Добавить машину. Только Car и без дубликатов по номеру."""
         if not isinstance(car, Car):
             raise TypeError(f"В автопарк можно добавить только Car, получено {type(car).__name__}")
-        # `car in self._items` перебирает список и вызывает Car.__eq__,
-        # а он сравнивает по гос. номеру — вот и проверка на дубликат.
-        if car in self._items:
+        if car in self._items:    # `in` сравнивает через Car.__eq__, то есть по номеру
             raise ValueError(f"Машина с номером {car.plate} уже есть в автопарке")
         self._items.append(car)
 
     def remove(self, car):
-        """Удалить машину (по равенству, т.е. по гос. номеру)."""
+        """Удалить машину. Если её нет — ValueError."""
         if car not in self._items:
-            raise ValueError(f"Машины с номером {car.plate} нет в автопарке")
+            raise ValueError("Такой машины нет в автопарке")
         self._items.remove(car)
 
     def get_all(self):
-        """Вернуть КОПИЮ списка машин.
-
-        Именно копию: если отдать self._items, внешний код сможет сделать
-        fleet.get_all().append("мусор") в обход всех проверок add().
-        """
+        """Копия списка: изменить автопарк в обход add() через неё нельзя."""
         return list(self._items)
 
-    # ---------- задание на 4: поиск, len, for, ограничения ----------
+    # --- задание на 4 ---
 
     def find_by_plate(self, plate):
-        """Найти машину по гос. номеру. Вернёт Car или None."""
-        plate = _validate_plate(plate)  # та же нормализация, что и в Car
+        """Машина с таким номером или None."""
         for car in self._items:
             if car.plate == plate:
                 return car
         return None
 
-    def find_by_brand(self, brand):
-        """Все машины указанной марки (регистр не важен). Вернёт список."""
-        brand = brand.strip().lower()
-        return [car for car in self._items if car.brand.lower() == brand]
-
     def __len__(self):
-        """len(fleet)"""
         return len(self._items)
 
     def __iter__(self):
-        """for car in fleet: ...  — отдаём итератор по копии-снимку."""
-        return iter(list(self._items))
+        # Благодаря __iter__ работают и `for car in fleet`, и `car in fleet`.
+        return iter(self._items)
 
-    def __contains__(self, car):
-        """car in fleet"""
-        return car in self._items
-
-    # ---------- задание на 5: индексация, удаление по индексу, сортировка, выборки ----------
+    # --- задание на 5 ---
 
     def __getitem__(self, index):
-        """fleet[0], fleet[-1], fleet[1:3] — делегируем списку."""
         return self._items[index]
 
     def remove_at(self, index):
         """Удалить машину по индексу и вернуть её."""
-        if not isinstance(index, int) or isinstance(index, bool):
-            raise TypeError("Индекс должен быть целым числом")
-        if not (-len(self._items) <= index < len(self._items)):
-            raise IndexError(f"Индекс {index} вне диапазона 0..{len(self._items) - 1}")
+        if not -len(self._items) <= index < len(self._items):
+            raise IndexError(f"В автопарке нет машины с индексом {index}")
         return self._items.pop(index)
 
-    def sort(self, key=None, reverse=False):
-        """Отсортировать НА МЕСТЕ. По умолчанию — по гос. номеру."""
-        if key is None:
-            key = lambda car: car.plate
+    def sort(self, key, reverse=False):
+        """Отсортировать автопарк на месте по функции-ключу."""
         self._items.sort(key=key, reverse=reverse)
 
-    def sort_by_year(self, newest_first=False):
-        self.sort(key=lambda car: car.year, reverse=newest_first)
-
-    def sort_by_mileage(self, descending=False):
-        self.sort(key=lambda car: car.mileage, reverse=descending)
-
-    def _subset(self, predicate, suffix):
-        """Общая заготовка для выборок: новый Fleet из машин, прошедших условие."""
-        result = Fleet(f"{self._name}: {suffix}")
-        for car in self._items:
-            if predicate(car):
-                result.add(car)
-        return result
-
     def get_available(self):
-        """Новый автопарк из машин, которые стоят в гараже."""
-        return self._subset(lambda car: car.is_available, "свободные")
+        """Новый автопарк из машин в гараже. Исходный не меняется."""
+        return Fleet(car for car in self._items if car.status == Car.STATUS_GARAGE)
 
     def get_in_service(self):
-        return self._subset(lambda car: car.status == Car.STATUS_SERVICE, "в ремонте")
-
-    def get_low_fuel(self, percent=25):
-        """Машины, у которых бак заполнен меньше чем на percent %."""
-        return self._subset(lambda car: car.fuel_percent < percent, f"бак < {percent} %")
-
-    # ---------- сводные показатели ----------
-
-    @property
-    def total_mileage(self):
-        return sum(car.mileage for car in self._items)
-
-    # ---------- магические методы ----------
+        """Новый автопарк из машин в ремонте. Исходный не меняется."""
+        return Fleet(car for car in self._items if car.status == Car.STATUS_SERVICE)
 
     def __str__(self):
         if not self._items:
-            return f"{self._name}: пусто"
-        lines = [f"{self._name} ({len(self._items)} шт.):"]
-        for number, car in enumerate(self._items, start=1):
-            lines.append(f"  {number}. {car}")
+            return "Автопарк пуст"
+        lines = [f"Автопарк, машин: {len(self._items)}"]
+        for index, car in enumerate(self._items):
+            lines.append(f"  [{index}] {car}")
         return "\n".join(lines)
-
-    def __repr__(self):
-        return f"Fleet(name={self._name!r}, items={len(self._items)})"
