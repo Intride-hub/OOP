@@ -5,7 +5,8 @@
 """
 
 from model import Car
-
+"""sценарии работы с классом Car."
+"""
 
 def header(title):
     print(f"\n{'=' * 60}\n{title}\n{'=' * 60}")
