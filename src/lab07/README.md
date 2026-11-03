@@ -53,6 +53,13 @@ CLI не трогает коллекцию: он вызывает только �
 аннотированы и имеют docstring; `python -m mypy *.py` — без ошибок.
 
 ## 4. Демонстрация работы
+
+
+## Демонстрация
+
+[![asciicast](https://asciinema.org/a/lvOKTiTCyvHdckEL.svg)](https://asciinema.org/a/lvOKTiTCyvHdckEL)
+
+
 Запуск из папки `src/lab07`: `python main.py`. В исходном `fleet.json` пять машин.
 
 **Сценарий 1.** Запуск → автозагрузка из `fleet.json` → вывод таблицей → выход с сохранением.
