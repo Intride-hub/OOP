@@ -57,7 +57,7 @@ CLI не трогает коллекцию: он вызывает только �
 
 ## Демонстрация
 
-[![asciicast](https://asciinema.org/a/lvOKTiTCyvHdckEL.svg)](https://asciinema.org/a/lvOKTiTCyvHdckEL)
+[![asciicast](https://asciinema.org/a/1270895.svg)](https://asciinema.org/a/1270895)
 
 
 Запуск из папки `src/lab07`: `python main.py`. В исходном `fleet.json` пять машин.
