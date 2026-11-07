@@ -1,0 +1,53 @@
+[
+  {
+    "type": "Car",
+    "plate": "А123ВС777",
+    "brand": "Toyota",
+    "model": "Camry",
+    "year": 2018,
+    "mileage": 145300,
+    "status": "в гараже"
+  },
+  {
+    "type": "Car",
+    "plate": "В777АА199",
+    "brand": "Lada",
+    "model": "Vesta",
+    "year": 2021,
+    "mileage": 30000,
+    "status": "в гараже"
+  },
+  {
+    "type": "Taxi",
+    "plate": "Т010ТТ97",
+    "brand": "Hyundai",
+    "model": "Solaris",
+    "year": 2019,
+    "mileage": 120500,
+    "status": "в гараже",
+    "tariff": 25.0,
+    "seats": 4
+  },
+  {
+    "type": "Taxi",
+    "plate": "В555ВВ77",
+    "brand": "Hyundai",
+    "model": "Sonata",
+    "year": 2022,
+    "mileage": 41000,
+    "status": "в ремонте",
+    "tariff": 35.0,
+    "seats": 3
+  },
+  {
+    "type": "Truck",
+    "plate": "Н500НН50",
+    "brand": "KamAZ",
+    "model": "5490",
+    "year": 2020,
+    "mileage": 400100,
+    "status": "в гараже",
+    "max_load": 20000.0,
+    "cargo": 12000.0
+  }
+]
