@@ -9,7 +9,6 @@ from abc import ABC, abstractmethod
 
 
 class Printable(ABC):
-    """Контракт: объект умеет описать себя строкой."""
 
     @abstractmethod
     def display(self):
@@ -17,7 +16,6 @@ class Printable(ABC):
 
 
 class Earnable(ABC):
-    """Контракт: объект приносит доход."""
 
     @abstractmethod
     def income(self, distance):

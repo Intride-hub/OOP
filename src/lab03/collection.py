@@ -1,47 +1,36 @@
 """ЛР-3. Fleet из ЛР-2 + выборка по типу get_by_type().
-
-Хранит Car и любых потомков: add() проверяет isinstance(car, Car),
-а Taxi и Truck — тоже Car.
-
-Fleet не наследуется от list, а хранит список внутри (композиция):
-так снаружи доступны только наши методы с проверками, а не append/insert.
 """
 
 from base import Car
 
 
 class Fleet:
-    """Автопарк: машины без повторов гос. номера."""
 
     def __init__(self, cars=()):
         self._items = []
-        for car in cars:          # каждая машина проходит те же проверки, что и в add()
+        for car in cars:          
             self.add(car)
 
     # --- из ЛР-2, задание на 3 ---
 
     def add(self, car):
-        """Добавить машину. Только Car и без дубликатов по номеру."""
         if not isinstance(car, Car):
             raise TypeError(f"В автопарк можно добавить только Car, получено {type(car).__name__}")
-        if car in self._items:    # `in` сравнивает через Car.__eq__, то есть по номеру
+        if car in self._items:   
             raise ValueError(f"Машина с номером {car.plate} уже есть в автопарке")
         self._items.append(car)
 
     def remove(self, car):
-        """Удалить машину. Если её нет — ValueError."""
         if car not in self._items:
             raise ValueError("Такой машины нет в автопарке")
         self._items.remove(car)
 
     def get_all(self):
-        """Копия списка: изменить автопарк в обход add() через неё нельзя."""
         return list(self._items)
 
     # --- из ЛР-2, задание на 4 ---
 
     def find_by_plate(self, plate):
-        """Машина с таким номером или None."""
         for car in self._items:
             if car.plate == plate:
                 return car
@@ -51,7 +40,6 @@ class Fleet:
         return len(self._items)
 
     def __iter__(self):
-        # Благодаря __iter__ работают и `for car in fleet`, и `car in fleet`.
         return iter(self._items)
 
     # --- из ЛР-2, задание на 5 ---
@@ -80,10 +68,7 @@ class Fleet:
     # --- ЛР-3: выборка по типу ---
 
     def get_by_type(self, car_type):
-        """Новый автопарк из машин данного типа.
-
-        isinstance учитывает наследование: get_by_type(Car) вернёт и такси, и грузовики.
-        """
+        """Новый автопарк из машин данного типа."""
         return Fleet(car for car in self._items if isinstance(car, car_type))
 
     def __str__(self):

@@ -1,10 +1,3 @@
-"""ЛР-3. Дочерние классы Taxi и Truck.
-
-Порядок в __init__ потомка: проверить свои аргументы -> super().__init__ ->
-записать свои атрибуты. Если свои аргументы неверны, объект не создаётся
-и счётчик Car.total_created не увеличивается.
-"""
-
 from base import Car
 from validate import _validate_int, _validate_positive
 
@@ -12,7 +5,7 @@ from validate import _validate_int, _validate_positive
 class Taxi(Car):
     """Такси: возит пассажиров по тарифу за километр."""
 
-    FUEL_CONSUMPTION = 10.0    # в городе расход выше, чем у обычной машины
+    FUEL_CONSUMPTION = 10.0   
     BASE_FARE = 100.0          # стоимость посадки, руб.
     MAX_SEATS = 8
 
